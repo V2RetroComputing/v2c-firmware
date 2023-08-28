@@ -1,0 +1,57 @@
+.define public GPIO_PIXELCLOCK 4
+.define public GPIO_SYNC 6
+.define public GPIO_DATA 7
+.define public GPIO_WNDW 11
+
+.define public GPIO_BTN2 12
+.define public GPIO_BTN3 13
+
+// GPIO 15 is BTN3 (was unused)
+// GPIO 14 is BTN2 (was unused)
+// GPIO 13 is TEXT (was BTN3)
+// GPIO 12 is GR (was BTN2)
+// GPIO 11 is WNDW - Active Screen Area - Active Low
+// GPIO 10 is LDPS (was D7)
+// GPIO 9 is SEGB (was LDPS)
+// GPIO 8 is D7 (was SEGB)
+// GPIO 7 is data in - Active Low
+// GPIO 6 is Sync Pulse - Active Low, 4us for HSync, 60us for VSync
+// GPIO 5 is unused (was GR)
+// GPIO 4 is 14MHz Pixel Clock
+
+.program datain
+.wrap_target
+    wait 1 gpio GPIO_WNDW       [0]        // wait for WNDW to go active
+next_pixel:
+    wait 1 gpio GPIO_PIXELCLOCK [1]        // wait 14MHz to go high
+    wait 0 gpio GPIO_PIXELCLOCK [1]        // wait 14MHz to go low
+    jmp PIN, data_cycle         [0]        // SYNC high = active area
+    jmp blanking_cycle          [0]        // 
+
+data_cycle:
+    mov Y, !PINS                [0]        // invert input
+    in Y, 1                     [0]        // push data
+
+    jmp next_pixel              [0]        // repeat
+
+blanking_cycle:
+    in NULL, 16                 [0]        // force push of current input bits
+    wait 1 gpio GPIO_SYNC       [0]        // wait for SYNC to go inactive
+.wrap
+
+.program syncin
+.wrap_target
+    mov X, !NULL                           // initialize counter
+    wait 0 gpio GPIO_SYNC                  // wait for sync pulse
+
+wait_release:
+    jmp PIN, sync_release                  // break if released
+    wait 1 gpio GPIO_PIXELCLOCK [1]        // wait 14MHz to go high
+    wait 0 gpio GPIO_PIXELCLOCK [0]        // wait 14MHz to go low
+    jmp  X--, wait_release                 // count the cycles
+
+sync_release:
+    mov X, !X                              // inverted counter
+    in X, 32                               // push counter value
+
+.wrap
