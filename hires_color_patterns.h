@@ -1,3 +1,14 @@
+/* Color decoding by lookup table
+ *
+ * This is similar to how Mark's original code for the Apple II VGA board worked.
+ * the serial bitstream is looked up in a table with a window of bits before and after the current pixel
+ * here we use a 12-bit window and lookup 4 output pixel values based on the preceeding and following
+ * pixel on/off states.  This should allow reasonably good rendering of single and double mono pixels
+ * when surrounded by large areas of the inverted state, or clean transitions between white and black
+ * as seen when drawing text in graphics modes.  For now this table is filled with the equivalent of the
+ * "Idealized" composite rendering code.  This table represents 4096 input states, and 16,384 output pixel
+ * combinations, so tweaking by hand is very tedious.
+ */
 #pragma once
 
 #include "render.h"
