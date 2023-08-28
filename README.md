@@ -4,6 +4,8 @@ Firmware for the RP2040 based Apple IIc VGA adapter
 The hardware for this project is still under heavy development, and pin functions will change between board revisions.
 This board will NOT be usable on an Apple IIgs, as those systems have Analog RGB with a pinout incompatible with the IIc's video port.
 
+TODO: Use the 14.318MHz pixel clock from the IIc to output VGA pixels at 28.636MHz pixel clock, with the goal of syncronizing the input and output frame rate, minimizing lag and stutter.  Currently the output is clocked independant of the input, and when conflicts occur between the input DMA and CPU rendering, visual artifacts occur.
+
 Current pin assignments as of Rev0 prototypes:
 ```
  0 LED 0
