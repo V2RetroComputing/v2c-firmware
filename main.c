@@ -185,8 +185,8 @@ void __noinline __time_critical_func(menu_paint_main)(uint8_t line) {
             break;
     }
     
-    if(!line) menu_paint_text(20, 4, "Sync Min:");
-    if(!line) menu_paint_text(21, 4, "Sync Max:");
+    //if(!line) menu_paint_text(20, 4, "Sync Min:");
+    //if(!line) menu_paint_text(21, 4, "Sync Max:");
 
 }
 
@@ -291,8 +291,8 @@ void __noinline __time_critical_func(menu_main)() {
             btn_select = 1;
         }
         if(menu_screen) {
-            menu_paint_u32(20, 16, sync_min);
-            menu_paint_u32(21, 16, sync_max);
+            //menu_paint_u32(20, 16, sync_min);
+            //menu_paint_u32(21, 16, sync_max);
             if(menu_dirty) {
                 menu_dirty = 0;
                 switch(menu_screen) {
