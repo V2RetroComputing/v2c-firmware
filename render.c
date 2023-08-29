@@ -3,20 +3,47 @@
 #include "vgaout.h"
 #include "iic.h"
 #include "hires_color_patterns.h"
+#include "v2logo.h"
+
+extern bool logo_screen;
+extern uint16_t logo_frame;
 
 extern uint8_t menu_screen;
 extern uint8_t render_mode;
 
 uint8_t __attribute__((section(".uninitialized_data.terminal_rom"))) terminal_rom[4096];
 uint8_t __attribute__((section(".uninitialized_data.terminal_ram"))) terminal_ram[4096];
+extern uint8_t palette_select;
 
-uint16_t color_border = RGB_BLACK;
+uint16_t stripe_colors[18] = {
+    0x06d2,
+    0x06d2,
+    0x06d2,
+    0x0fd4,
+    0x0fd4,
+    0x0fd4,
+    0x0f14,
+    0x0f14,
+    0x0f14,
+    0x07cc,
+    0x07cc,
+    0x07cc,
+    0x09c9,
+    0x09c9,
+    0x09c9,
+    0x009b,
+    0x009b,
+    0x009b,
+};
+
 uint16_t color_fore = RGB_WHITE;
 uint16_t color_back = RGB_BLACK;
 
+static void __noinline __time_critical_func(render_logo)(uint16_t line, bool mono);
 static void __noinline __time_critical_func(render_menu_line)(uint16_t line);
 static void __noinline __time_critical_func(render_line)(uint16_t line, bool mono);
-static void __noinline __time_critical_func(render_border)(uint count);
+static void __noinline __time_critical_func(render_border)(uint16_t count);
+static void __noinline __time_critical_func(render_black)(uint16_t count);
 
 uint16_t __attribute__((section(".time_critical.color_palette"))) color_palette[16] = {
     RGB_BLACK,    RGB_MAGENTA,  RGB_DBLUE,     RGB_HVIOLET,
@@ -38,28 +65,117 @@ uint16_t __attribute__((section(".time_critical.half_palette"))) half_palette[16
 
 void __noinline __time_critical_func(vga_main)() {
     bool mono = false;
+    uint8_t line;
 
     for(;;) {
         vga_prepare_frame();
-        if(menu_screen) {
-            for(uint line=0; line < 24; line++) {
+        if(logo_screen) {
+            if(menu_screen == 2) {
+                for(line=0; line < 7; line++) {
+                    render_menu_line(line);
+                }
+                for(line=0; line < 180; line++) {
+                    render_logo(line, (palette_select != 0));
+                }
+                for(line=16; line < 24; line++) {
+                    render_menu_line(line);
+                }
+                if((logo_frame < 660) || (logo_frame >= 751)) {
+                    logo_frame+=6;
+                }
+            } else {
+                render_black(140);
+                for(line=0; line < 180; line++) {
+                    render_logo(line, false);
+                }
+                render_black(160);
+                logo_frame+=2;
+                if(logo_frame >= 950) {
+                    logo_frame = 0;
+                    logo_screen = false;
+                }
+            }
+        } else if(menu_screen) {
+            for(line=0; line < 24; line++) {
                 render_menu_line(line);
             }
         } else {
-            for(uint8_t line=0; line < 240; line++) {
-                render_line(line+LINE_OFFSET, v_mode[line+LINE_OFFSET]);
+            for(line=0; line < 240; line++) {
+                render_line(line+LINE_OFFSET, (palette_select != 0) || v_mode[line+LINE_OFFSET]);
             }
         }
     }
 }
 
+static void __noinline __time_critical_func(render_logo)(uint16_t line, bool mono) {
+    uint16_t stripe = stripe_colors[line / 10];
+    struct vga_scanline *sl = vga_prepare_scanline();
+    uint16_t sl_pos, i;
+    int32_t x,y,z;
+    uint32_t pixeldata;
+    uint8_t bits;
+    uint16_t local_color[4];
+
+    local_color[0] = (mono) ? color_back : 0x000;
+    local_color[1] = (mono) ? color_fore : 0xfff;
+    local_color[2] = (mono) ? color_fore : stripe;
+
+    sl_pos = 0;
+    z=(line/30)*10 + 1200 - logo_frame;
+
+    pixeldata = (local_color[0]) | ((local_color[0]) << 16);
+    sl->data[sl_pos++] = pixeldata;
+    pixeldata = (local_color[0]|THEN_EXTEND_7) | ((local_color[0]|THEN_EXTEND_7) << 16);
+    for(i = 0; i < 13; i++) {
+        sl->data[sl_pos++] = pixeldata;
+    }
+
+    for(i = 0; i < 220; i+=2, z++) {
+        if((z < 450) || (z > 750)) {
+            pixeldata = ((local_color[0]) | ((local_color[0]) << 16));
+        } else {
+            bits = v2logo[line*220+i];
+            pixeldata = (z > 749) ? local_color[bits ? 1 : 0] : local_color[bits & 3];
+            bits = v2logo[line*220+i+1];
+            pixeldata |= ((z > 749) ? local_color[bits ? 1 : 0] : local_color[bits & 3]) << 16;
+        }
+        sl->data[sl_pos++] = pixeldata;
+    }
+    
+    pixeldata = (local_color[0]|THEN_EXTEND_7) | ((local_color[0]|THEN_EXTEND_7) << 16);
+    for(i = 0; i < 13; i++) {
+        sl->data[sl_pos++] = pixeldata;
+    }
+    pixeldata = (local_color[0]) | ((local_color[0]) << 16);
+    sl->data[sl_pos++] = pixeldata;
+
+    sl->length = sl_pos;
+    sl->repeat_count = 0;
+    vga_submit_scanline(sl);
+}
+
 // Skip lines to center vertically or blank the screen
-static void __noinline __time_critical_func(render_border)(uint count) {
+static void __noinline __time_critical_func(render_border)(uint16_t count) {
     struct vga_scanline *sl = vga_prepare_scanline();
     uint sl_pos = 0;
 
     while(sl_pos < VGA_WIDTH/16) {
-        sl->data[sl_pos] = (color_border|THEN_EXTEND_7) | ((color_border|THEN_EXTEND_7) << 16);
+        sl->data[sl_pos] = (color_back|THEN_EXTEND_7) | ((color_back|THEN_EXTEND_7) << 16);
+        sl_pos++;
+    }
+
+    sl->length = sl_pos;
+    sl->repeat_count = count - 1;
+    vga_submit_scanline(sl);
+}
+
+// Skip lines to center vertically or blank the screen
+static void __noinline __time_critical_func(render_black)(uint16_t count) {
+    struct vga_scanline *sl = vga_prepare_scanline();
+    uint sl_pos = 0;
+
+    while(sl_pos < VGA_WIDTH/16) {
+        sl->data[sl_pos] = (0x000|THEN_EXTEND_7) | ((0x000|THEN_EXTEND_7) << 16);
         sl_pos++;
     }
 
@@ -217,7 +333,10 @@ static void __noinline __time_critical_func(render_menu_line)(uint16_t line) {
     for(uint glyph_line = 0; glyph_line < 10; glyph_line++) {
         struct vga_scanline *sl = vga_prepare_scanline();
         uint sl_pos = 0;
-        for(uint col=0; col < 80; ) {
+
+        sl->data[sl_pos++] = color_back | ((color_back|THEN_EXTEND_3) << 16);
+
+        for(uint col=0; col < 90; ) {
             // Grab 14 pixels from the next two characters
             uint32_t bits_a = char_terminal_bits(line_buf[col], glyph_line);
             col++;
@@ -236,6 +355,8 @@ static void __noinline __time_critical_func(render_menu_line)(uint16_t line) {
                 sl_pos++;
             }
         }
+
+        sl->data[sl_pos++] = color_back | ((color_back|THEN_EXTEND_3) << 16);
 
         sl->length = sl_pos;
         sl->repeat_count = 1;

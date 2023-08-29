@@ -21,11 +21,13 @@ extern uint8_t __attribute__((section(".uninitialized_data.terminal_rom"))) term
 // Menu screen text buffer
 extern uint8_t __attribute__((section(".uninitialized_data.terminal_ram"))) terminal_ram[4096];
 
-extern uint16_t color_border;
 extern uint16_t color_fore;
 extern uint16_t color_back;
 
 void core1_entry();
+
+bool logo_screen = true;
+uint16_t logo_frame = 0;
 
 uint8_t menu_screen = 0;
 bool menu_dirty = 0;
@@ -39,22 +41,28 @@ uint8_t menu_max = 0;
 #define RENDER_MAX 5
 uint8_t render_mode = 4;
 
-#define PALETE_MAX 6
-uint8_t palette_select = 0;
+#define PALETE_MAX 10
+uint8_t palette_select = 6;
 
 extern volatile uint32_t sync_min;
 extern volatile uint32_t sync_max;
 
 // These aren't correct yet.
-uint16_t palette_map[6*3] = {
-    0x000, 0x000, 0xfff,
-    0xfff, 0xfff, 0x000,
+uint16_t palette_map[PALETE_MAX*3] = {
+    0x000, 0xfff,
+    0xfff, 0x000,
 
-    0x000, 0x000, 0x07c,
-    0x07c, 0x07c, 0x000,
+    0x080, 0x07c,
+    0x07c, 0x080,
 
-    0x000, 0x000, 0x360,
-    0x360, 0x360, 0x000,
+    0x800, 0x360,
+    0x360, 0x800,
+
+    0x0c8, 0x03c,
+    0x0ec, 0x000,
+
+    0xec0, 0x760,
+    0x760, 0xec0,
 };
 
 
@@ -133,24 +141,33 @@ void __noinline __time_critical_func(menu_paint_main)(uint8_t line) {
             case 5:
                 menu_paint_text(5, 20, "Amber Inverse ");
                 break;
+            case 6:
+                menu_paint_text(5, 20, "LCD Light     ");
+                break;
+            case 7:
+                menu_paint_text(5, 20, "LCD Dark      ");
+                break;
+            case 8:
+                menu_paint_text(5, 20, "Plasma        ");
+                break;
+            case 9:
+                menu_paint_text(5, 20, "Plasma Inverse");
+                break;
         }
 
-        menu_paint_text(6, 8, "Border:");
-        menu_paint_hex12(6, 20, color_border);
+        menu_paint_text(6, 8, "Background:");
+        menu_paint_hex12(6, 20, color_back);
 
-        menu_paint_text(7, 8, "Background:");
-        menu_paint_hex12(7, 20, color_back);
-
-        menu_paint_text(8, 8, "Foreground:");
-        menu_paint_hex12(8, 20, color_fore);
+        menu_paint_text(7, 8, "Foreground:");
+        menu_paint_hex12(7, 20, color_fore);
     }
 
     if(!line || (line==3)) {
-        menu_paint_text(9, 6, "About");
+        menu_paint_text(8, 6, "About");
     }
 
     if(!line || (line==4)) {
-        menu_paint_text(10, 6, "Exit Menu");
+        menu_paint_text(9, 6, "Exit Menu");
     }
 
     if(!line) switch(menu_line) {
@@ -161,10 +178,10 @@ void __noinline __time_critical_func(menu_paint_main)(uint8_t line) {
             menu_paint_text(5, 4, ">");
             break;
         case 2:
-            menu_paint_text(9, 4, ">");
+            menu_paint_text(8, 4, ">");
             break;
         case 3:
-            menu_paint_text(10, 4, ">");
+            menu_paint_text(9, 4, ">");
             break;
     }
     
@@ -181,9 +198,8 @@ void __noinline __time_critical_func(menu_action_main)() {
             break;
         case 1:
             palette_select = (palette_select + 1) % PALETE_MAX;
-            color_border = palette_map[palette_select * 3 + 0];
-            color_back = palette_map[palette_select * 3 + 1];
-            color_fore = palette_map[palette_select * 3 + 2];
+            color_back = palette_map[palette_select * 2 + 0];
+            color_fore = palette_map[palette_select * 2 + 1];
             menu_paint_main(2);
             break;
         case 2:
@@ -206,10 +222,10 @@ void __noinline __time_critical_func(menu_select_main)() {
             menu_paint_text(5, 4, " ");
             break;
         case 2:
-            menu_paint_text(9, 4, " ");
+            menu_paint_text(8, 4, " ");
             break;
         case 3:
-            menu_paint_text(10, 4, " ");
+            menu_paint_text(9, 4, " ");
             break;
     }
     menu_line = (menu_line + 1) % menu_max;
@@ -221,10 +237,10 @@ void __noinline __time_critical_func(menu_select_main)() {
             menu_paint_text(5, 4, ">");
             break;
         case 2:
-            menu_paint_text(9, 4, ">");
+            menu_paint_text(8, 4, ">");
             break;
         case 3:
-            menu_paint_text(10, 4, ">");
+            menu_paint_text(9, 4, ">");
             break;
     }
 }
@@ -232,13 +248,25 @@ void __noinline __time_critical_func(menu_select_main)() {
 void __noinline __time_critical_func(menu_paint_about)(uint8_t line) {
     // Number of selectable menu lines
     menu_max = 3;
+    if(!line) {
+        logo_frame = 450;
+        logo_screen = true;
+    }
     if(!line) memset(terminal_ram, ' ', sizeof(terminal_ram));
-    if(!line) menu_paint_text(10, 23, "V2c Hardware and Firmware Designed");
-    if(!line) menu_paint_text(11, 29, "in 2023 by David Kuder");
-    if(!line) menu_paint_text(20, 28, "> Press Select to exit <");
+    if(!line) menu_paint_text(2, 28, "V2c Hardware and Firmware Designed");
+    if(!line) menu_paint_text(3, 34, "in 2023 by David Kuder");
+    if(!line) menu_paint_text(20, 33, "> Press Select to exit <");
 }
 
 void __noinline __time_critical_func(menu_action_about)() {
+    if(logo_frame >= 660) {
+        logo_frame = 751;
+        while(logo_frame <= 950) {
+            sleep_ms(5);
+        }
+    }
+    logo_frame = 0;
+    logo_screen = false;
     menu_screen = 1;
     menu_dirty = 1;
     menu_line = 0;
@@ -333,6 +361,9 @@ int main() {
     gpio_init(GPIO_BTN3);
     gpio_set_dir(GPIO_BTN3, GPIO_IN);
     gpio_pull_up(GPIO_BTN3);
+
+    color_back = palette_map[palette_select * 2 + 0];
+    color_fore = palette_map[palette_select * 2 + 1];
 
     // launch VGA on core1
     multicore_launch_core1(core1_entry);
