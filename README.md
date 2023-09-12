@@ -40,7 +40,7 @@ Current pin assignments as of Rev0 prototypes:
 29 VGA V-Sync
 ```
 
-Rev1 Prototypes will have the following pinout:
+Rev1 Prototypes are slated to have the following pinout:
 ```
  0 LED 0
  1 LED 1
@@ -73,3 +73,5 @@ Rev1 Prototypes will have the following pinout:
 28 VGA H-Sync
 29 VGA V-Sync
 ```
+
+At the moment the hardware design is not finalized, and has suffered due to an unstable clock circuit.  I'm expecting to have production boards ready for manufacturing in early 2024.  With a clip-lead harness, this board can also be used to provide slot-free VGA output to IIe and II+ systems, similar to other projects out there.
